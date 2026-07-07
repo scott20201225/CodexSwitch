@@ -278,8 +278,11 @@ public sealed class ProxyHostService : IAsyncDisposable
 
     private void ApplyManagedClientConfig(AppConfig config)
     {
+        // Codex integration is opt-in: only touch ~/.codex when the user enabled it and a Codex
+        // provider is active. Otherwise restore the user's original (or remove files we generated).
+        // Claude Code applies the equivalent opt-in check inside its own writer.
         var codexProvider = ProviderRoutingResolver.ResolveActiveProvider(config, ClientAppKind.Codex);
-        if (codexProvider is null)
+        if (!config.Proxy.ManageCodexConfig || codexProvider is null)
             _codexConfigWriter.RestoreOriginal();
         else
             _codexConfigWriter.Apply(config);

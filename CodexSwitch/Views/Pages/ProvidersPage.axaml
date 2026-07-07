@@ -23,12 +23,24 @@
             <Setter Property="BorderBrush" Value="{DynamicResource CodexSwitch.BorderBrush}"/>
         </Style>
         <Style Selector="Border.provider-drag-handle">
-            <Setter Property="Width" Value="22"/>
+            <Setter Property="Width" Value="20"/>
             <Setter Property="MinHeight" Value="46"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="ui|CodexProviderCard:pointerover Border.provider-drag-handle">
+            <Setter Property="Opacity" Value="0.9"/>
+        </Style>
+        <Style Selector="Grid.provider-list-row.dragging Border.provider-drag-handle">
+            <Setter Property="Opacity" Value="1"/>
         </Style>
         <Style Selector="Border.provider-drag-handle lucide|LucideIcon">
             <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.MutedForegroundBrush}"/>
@@ -39,7 +51,7 @@
             <Setter Property="Foreground" Value="{DynamicResource CodexSwitch.ForegroundBrush}"/>
         </Style>
         <Style Selector="Border.provider-usage">
-            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="Padding" Value="9,6"/>
             <Setter Property="Background" Value="{DynamicResource CodexSwitch.ProviderUsageBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource CodexSwitch.ProviderUsageBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -160,7 +172,30 @@
                                     <ui:CodexImageIcon Path="{Binding IconPath}" Width="22" Height="22"/>
                                 </ui:CodexProviderCard.Icon>
                                 <ui:CodexProviderCard.Meta>
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <ui:CodexSelect Classes="provider-model-select"
+                                                    ItemsSource="{Binding DefaultModelOptions}"
+                                                    SelectedItem="{Binding DefaultModel, Mode=TwoWay}"
+                                                    IsEnabled="{Binding CanChangeDefaultModel}"
+                                                    ToolTip.Tip="{i18n:Tr providers.defaultModel}">
+                                        <ui:CodexSelect.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ui:CodexSelect.ItemTemplate>
+                                        <ui:CodexSelect.SelectionBoxItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ui:CodexSelect.SelectionBoxItemTemplate>
+                                    </ui:CodexSelect>
+                                </ui:CodexProviderCard.Meta>
+                                <ui:CodexProviderCard.Status>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <ui:CodexBadge Variant="Success"
+                                                       Padding="8,2"
+                                                       IsVisible="{Binding IsActive}">
+                                            <TextBlock Text="{i18n:Tr providers.active}" FontSize="11" FontWeight="SemiBold"/>
+                                        </ui:CodexBadge>
                                         <ui:CodexBadge Variant="Secondary" Padding="7,2">
                                             <TextBlock Text="{Binding Protocol}" FontSize="11"/>
                                         </ui:CodexBadge>
@@ -169,33 +204,10 @@
                                                        IsVisible="{Binding IsOAuth}">
                                             <TextBlock Text="{Binding AccountSummary}"
                                                        FontSize="11"
-                                                       MaxWidth="230"
+                                                       MaxWidth="170"
                                                        TextTrimming="CharacterEllipsis"/>
                                         </ui:CodexBadge>
-                                        <ui:CodexSelect Classes="provider-model-select"
-                                                        ItemsSource="{Binding DefaultModelOptions}"
-                                                        SelectedItem="{Binding DefaultModel, Mode=TwoWay}"
-                                                        IsEnabled="{Binding CanChangeDefaultModel}"
-                                                        ToolTip.Tip="{i18n:Tr providers.defaultModel}">
-                                            <ui:CodexSelect.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
-                                                </DataTemplate>
-                                            </ui:CodexSelect.ItemTemplate>
-                                            <ui:CodexSelect.SelectionBoxItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
-                                                </DataTemplate>
-                                            </ui:CodexSelect.SelectionBoxItemTemplate>
-                                        </ui:CodexSelect>
                                     </StackPanel>
-                                </ui:CodexProviderCard.Meta>
-                                <ui:CodexProviderCard.Status>
-                                    <ui:CodexBadge Variant="Success"
-                                                   Padding="9,2"
-                                                   IsVisible="{Binding IsActive}">
-                                        <TextBlock Text="{i18n:Tr providers.active}" FontSize="11" FontWeight="SemiBold"/>
-                                    </ui:CodexBadge>
                                 </ui:CodexProviderCard.Status>
                                 <ui:CodexProviderCard.Usage>
                                     <Border Classes="provider-usage"
@@ -207,8 +219,8 @@
                                         <Grid ColumnDefinitions="Auto,*"
                                               RowDefinitions="Auto,Auto,Auto"
                                               ColumnSpacing="7"
-                                              MinWidth="142"
-                                              MaxWidth="210">
+                                              MinWidth="0"
+                                              MaxWidth="124">
                                             <Border Grid.RowSpan="3"
                                                     Classes="usage-status-dot"
                                                     Classes.success="{Binding IsUsageValid}"

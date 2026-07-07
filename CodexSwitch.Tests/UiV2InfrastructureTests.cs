@@ -354,7 +354,8 @@ public sealed class UiV2InfrastructureTests : IDisposable
                 Enabled = true,
                 Host = "127.0.0.1",
                 Port = GetAvailablePort(),
-                InboundApiKey = "local-secret"
+                InboundApiKey = "local-secret",
+                ManageCodexConfig = true
             },
             Providers =
             {
@@ -391,6 +392,60 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal("{\"auth_mode\":\"chatgpt\",\"tokens\":{\"access_token\":\"before\"}}\n", File.ReadAllText(paths.CodexAuthPath));
         Assert.False(File.Exists(paths.CodexConfigPath + ".bak"));
         Assert.False(File.Exists(paths.CodexAuthPath + ".bak"));
+    }
+
+    [Fact]
+    public async Task ProxyHostService_StartAsync_LeavesCodexConfigUntouched_WhenManageDisabled()
+    {
+        var paths = CreatePaths("unmanaged-codex-proxy");
+        var catalog = new ModelPricingCatalog();
+        var calculator = new PriceCalculator(catalog);
+        var configStore = new ConfigurationStore(paths);
+        Directory.CreateDirectory(paths.CodexDirectory);
+        const string originalConfig = "model = \"before\"\n";
+        File.WriteAllText(paths.CodexConfigPath, originalConfig);
+
+        var config = new AppConfig
+        {
+            ActiveProviderId = "first",
+            Proxy =
+            {
+                Enabled = true,
+                Host = "127.0.0.1",
+                Port = GetAvailablePort(),
+                InboundApiKey = "local-secret"
+            },
+            Providers =
+            {
+                new ProviderConfig
+                {
+                    Id = "first",
+                    BaseUrl = "https://example.com/v1",
+                    Protocol = ProviderProtocol.OpenAiResponses,
+                    DefaultModel = "gpt-5.5"
+                }
+            }
+        };
+
+        using var authHttpClient = new HttpClient();
+        await using var service = new ProxyHostService(
+            new UsageMeter(calculator),
+            calculator,
+            CreateUsageLogWriter(paths),
+            new CodexConfigWriter(paths),
+            new ClaudeCodeConfigWriter(paths),
+            new ProviderAuthService(configStore, config, authHttpClient),
+            Array.Empty<IProviderProtocolAdapter>());
+
+        await service.StartAsync(config);
+
+        // ManageCodexConfig defaults false, so the user's ~/.codex/config.toml is never rewritten or backed up.
+        Assert.Equal(originalConfig, File.ReadAllText(paths.CodexConfigPath));
+        Assert.False(File.Exists(paths.CodexConfigPath + ".bak"));
+
+        await service.StopAsync();
+
+        Assert.Equal(originalConfig, File.ReadAllText(paths.CodexConfigPath));
     }
 
     [Fact]

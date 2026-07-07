@@ -318,7 +318,8 @@ public sealed class CodexConfigWriterTests : IDisposable
             {
                 Host = "127.0.0.1",
                 Port = 12785,
-                InboundApiKey = "local-secret"
+                InboundApiKey = "local-secret",
+                ManageClaudeCodeConfig = true
             },
             Providers =
             {
@@ -523,6 +524,11 @@ public sealed class CodexConfigWriterTests : IDisposable
 
         var writer = new CodexConfigWriter(paths);
         writer.Apply(new AppConfig());
+
+        // Requirement: config CodexSwitch generated (no pre-existing original) is never backed up.
+        Assert.True(File.Exists(paths.CodexConfigPath));
+        Assert.False(File.Exists(BackupPath(paths.CodexConfigPath)));
+        Assert.False(File.Exists(BackupPath(paths.CodexAuthPath)));
 
         writer.RestoreOriginal();
 

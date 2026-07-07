@@ -62,6 +62,10 @@ public sealed class ProxySettings
 
     public bool UseFakeCodexAppAuth { get; set; }
 
+    public bool ManageCodexConfig { get; set; }
+
+    public bool ManageClaudeCodeConfig { get; set; }
+
     public string Endpoint => $"http://{Host}:{Port}/v1";
 }
 

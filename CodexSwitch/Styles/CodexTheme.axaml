@@ -80,6 +80,21 @@
         <SolidColorBrush x:Key="CsIconButtonDangerBorderBrush" Color="#6B2429"/>
         <SolidColorBrush x:Key="CsIconButtonDangerHoverBrush" Color="#3A171A"/>
         <SolidColorBrush x:Key="CsIconButtonDangerHoverBorderBrush" Color="#B23A42"/>
+
+        <!-- Sidebar navigation redesign -->
+        <SolidColorBrush x:Key="CsSidebarSurfaceBrush" Color="#0F0F13"/>
+        <SolidColorBrush x:Key="CsNavRestForegroundBrush" Color="#9A9AA5"/>
+        <SolidColorBrush x:Key="CsNavHoverBrush" Color="#1C1C21"/>
+        <SolidColorBrush x:Key="CsNavActiveBrush" Color="#152239"/>
+        <SolidColorBrush x:Key="CsNavActiveBorderBrush" Color="#2C4270"/>
+        <SolidColorBrush x:Key="CsNavAccentBrush" Color="#4D7CFF"/>
+        <SolidColorBrush x:Key="CsNavActiveForegroundBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="CsNavActiveIconBrush" Color="#7EA2FF"/>
+        <SolidColorBrush x:Key="CsGroupLabelBrush" Color="#6A6A74"/>
+
+        <!-- Provider card refinements -->
+        <SolidColorBrush x:Key="CsProviderIconShellBrush" Color="#17171C"/>
+        <SolidColorBrush x:Key="CsProviderIconShellBorderBrush" Color="#2C2C33"/>
     </Styles.Resources>
 
     <Style Selector="Window">
@@ -126,25 +141,263 @@
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/ScrollArea.axaml"/>
     <StyleInclude Source="avares://CodexSwitch/Styles/Components/ContextMenu.axaml"/>
 
+    <!-- ============================================================= -->
+    <!-- Sidebar surface: subtly elevated above the content canvas      -->
+    <!-- ============================================================= -->
+    <Style Selector="ui|CodexSidebar">
+        <Setter Property="Background" Value="{StaticResource CsSidebarSurfaceBrush}"/>
+        <Setter Property="Padding" Value="14,18"/>
+    </Style>
+
+    <!-- Group labels: quiet, uppercase section headers -->
+    <Style Selector="ui|CodexSidebarGroupLabel">
+        <Setter Property="Foreground" Value="{StaticResource CsGroupLabelBrush}"/>
+        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="10,2,8,2"/>
+    </Style>
+
+    <!-- ============================================================= -->
+    <!-- Sidebar menu button: muted at rest, blue accent when active,   -->
+    <!-- with a left indicator rail. Hover stays a neutral grey so the  -->
+    <!-- active item is never confused with a hovered one.              -->
+    <!-- ============================================================= -->
+    <Style Selector="ui|CodexSidebarMenuButton">
+        <Setter Property="MinHeight" Value="38"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="Foreground" Value="{StaticResource CsNavRestForegroundBrush}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Template">
+            <ControlTemplate TargetType="ui:CodexSidebarMenuButton">
+                <Grid MinHeight="{TemplateBinding MinHeight}">
+                    <Border x:Name="PART_MenuButtonRoot"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransform="{TemplateBinding RenderTransform}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                            <ContentControl x:Name="PART_Icon"
+                                            Content="{TemplateBinding Icon}"
+                                            IsVisible="{TemplateBinding HasIcon}"
+                                            Width="18"
+                                            Height="18"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"/>
+                            <ContentPresenter x:Name="PART_Label"
+                                              Grid.Column="1"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              RecognizesAccessKey="True"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                            <ContentControl x:Name="PART_Badge"
+                                            Grid.Column="2"
+                                            Content="{TemplateBinding Badge}"
+                                            IsVisible="{TemplateBinding HasBadge}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <Border x:Name="PART_Indicator"
+                            Width="3"
+                            Height="18"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Margin="-3,0,0,0"
+                            CornerRadius="999"
+                            Background="{StaticResource CsNavAccentBrush}"
+                            Opacity="0"
+                            IsHitTestVisible="False"/>
+                    <Border x:Name="PART_FocusRing"
+                            BorderBrush="{DynamicResource CodexSwitch.RingBrush}"
+                            BorderThickness="{DynamicResource CodexSwitch.FocusThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            IsHitTestVisible="False"
+                            Opacity="0"/>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
     <Style Selector="ui|CodexSidebarMenuButton /template/ Border#PART_MenuButtonRoot">
         <Setter Property="Transitions">
             <Transitions>
                 <DoubleTransition Property="Opacity" Duration="0:0:0.12"/>
+                <BrushTransition Property="Background" Duration="0:0:0.12"/>
                 <BrushTransition Property="BorderBrush" Duration="0:0:0.10"/>
-                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.10"/>
             </Transitions>
         </Setter>
     </Style>
+    <Style Selector="ui|CodexSidebarMenuButton /template/ Border#PART_Indicator">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.14"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <!-- Hover: neutral grey, brighter text -->
     <Style Selector="ui|CodexSidebarMenuButton:pointerover">
-        <Setter Property="Foreground" Value="{StaticResource CsSidebarAccentForegroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
     </Style>
     <Style Selector="ui|CodexSidebarMenuButton:pointerover /template/ Border#PART_MenuButtonRoot">
-        <Setter Property="Background" Value="{StaticResource CsSidebarAccentBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsNavHoverBrush}"/>
     </Style>
+
+    <!-- Active: blue-tinted fill, white text, blue icon, indicator rail -->
     <Style Selector="ui|CodexSidebarMenuButton.active">
-        <Setter Property="Foreground" Value="{StaticResource CsSidebarAccentForegroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource CsNavActiveForegroundBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
     <Style Selector="ui|CodexSidebarMenuButton.active /template/ Border#PART_MenuButtonRoot">
-        <Setter Property="Background" Value="{StaticResource CsSidebarAccentBrush}"/>
+        <Setter Property="Background" Value="{StaticResource CsNavActiveBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsNavActiveBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.active /template/ Border#PART_Indicator">
+        <Setter Property="Opacity" Value="1"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.active /template/ ContentControl#PART_Icon">
+        <Setter Property="Foreground" Value="{StaticResource CsNavActiveIconBrush}"/>
+    </Style>
+
+    <!-- Add-provider footer button: a bordered call-to-action, never muted -->
+    <Style Selector="ui|CodexSidebarMenuButton.add-provider">
+        <Setter Property="Foreground" Value="{StaticResource CsForegroundBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.add-provider /template/ Border#PART_MenuButtonRoot">
+        <Setter Property="Background" Value="{StaticResource CsNavHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.add-provider:pointerover /template/ Border#PART_MenuButtonRoot">
+        <Setter Property="Background" Value="{StaticResource CsNavActiveBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CsNavAccentBrush}"/>
+    </Style>
+
+    <!-- Footer hairline + version status row -->
+    <Style Selector="Border.sidebar-hairline">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Margin" Value="2,0"/>
+        <Setter Property="Background" Value="{StaticResource CsBorderBrush}"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.version">
+        <Setter Property="Foreground" Value="{StaticResource CsNavRestForegroundBrush}"/>
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Padding" Value="10,6"/>
+    </Style>
+    <Style Selector="ui|CodexSidebarMenuButton.version /template/ ContentControl#PART_Icon">
+        <Setter Property="Foreground" Value="{StaticResource CsGroupLabelBrush}"/>
+    </Style>
+
+    <!-- ============================================================= -->
+    <!-- Provider card: rebalanced layout. Status sits inline with the  -->
+    <!-- name; actions cluster at the top-right; usage docks below;      -->
+    <!-- protocol/account/model metadata gets its own line.             -->
+    <!-- ============================================================= -->
+    <Style Selector="ui|CodexProviderCard">
+        <Setter Property="MinHeight" Value="66"/>
+        <Setter Property="Padding" Value="14,11"/>
+        <Setter Property="Template">
+            <ControlTemplate TargetType="ui:CodexProviderCard">
+                <Border x:Name="PART_Surface"
+                        MinHeight="{TemplateBinding MinHeight}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto"
+                          ColumnSpacing="13">
+                        <!-- accent rail for the active provider -->
+                        <Border x:Name="PART_ActiveRail"
+                                Grid.Column="1"
+                                Width="3"
+                                Height="26"
+                                Margin="-9,0,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                CornerRadius="999"
+                                Background="{StaticResource CsNavAccentBrush}"
+                                Opacity="0"
+                                IsHitTestVisible="False"/>
+                        <ContentPresenter x:Name="PART_Leading"
+                                          Grid.Column="0"
+                                          Content="{TemplateBinding Leading}"
+                                          IsVisible="{TemplateBinding HasLeading}"
+                                          VerticalAlignment="Stretch"/>
+                        <Border Grid.Column="1"
+                                x:Name="PART_IconShell"
+                                Width="40"
+                                Height="40"
+                                CornerRadius="{DynamicResource CodexSwitch.RadiusMd}"
+                                Background="{StaticResource CsProviderIconShellBrush}"
+                                BorderBrush="{StaticResource CsProviderIconShellBorderBrush}"
+                                BorderThickness="1"
+                                VerticalAlignment="Center">
+                            <ContentPresenter x:Name="PART_Icon"
+                                              Content="{TemplateBinding Icon}"
+                                              IsVisible="{TemplateBinding HasIcon}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="2"
+                                    Spacing="2"
+                                    VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="7"
+                                        VerticalAlignment="Center">
+                                <ContentPresenter x:Name="PART_HeaderPresenter"
+                                                  Content="{TemplateBinding Header}"
+                                                  FontSize="14"
+                                                  FontWeight="SemiBold"
+                                                  VerticalAlignment="Center"/>
+                                <ContentPresenter x:Name="PART_Status"
+                                                  Content="{TemplateBinding Status}"
+                                                  IsVisible="{TemplateBinding HasStatus}"
+                                                  VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PART_Description"
+                                       Text="{TemplateBinding Description}"
+                                       IsVisible="{TemplateBinding HasDescription}"
+                                       Foreground="{DynamicResource CodexSwitch.MutedForegroundBrush}"
+                                       FontSize="{DynamicResource CodexSwitch.FontSizeSm}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <!-- fixed-width right band so columns align across rows -->
+                        <Grid Grid.Column="3"
+                              ColumnDefinitions="Auto,140,Auto"
+                              ColumnSpacing="14"
+                              VerticalAlignment="Center">
+                            <ContentPresenter x:Name="PART_Meta"
+                                              Grid.Column="0"
+                                              Content="{TemplateBinding Meta}"
+                                              IsVisible="{TemplateBinding HasMeta}"
+                                              VerticalAlignment="Center"/>
+                            <ContentPresenter x:Name="PART_Usage"
+                                              Grid.Column="1"
+                                              Content="{TemplateBinding Usage}"
+                                              HorizontalAlignment="Right"
+                                              VerticalAlignment="Center"/>
+                            <ContentPresenter x:Name="PART_Actions"
+                                              Grid.Column="2"
+                                              Content="{TemplateBinding Actions}"
+                                              IsVisible="{TemplateBinding HasActions}"
+                                              HorizontalAlignment="Right"
+                                              VerticalAlignment="Center"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CodexProviderCard /template/ Border#PART_ActiveRail">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.14"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="ui|CodexProviderCard.active /template/ Border#PART_ActiveRail">
+        <Setter Property="Opacity" Value="1"/>
     </Style>
 </Styles>

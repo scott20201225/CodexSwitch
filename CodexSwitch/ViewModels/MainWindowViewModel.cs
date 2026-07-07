@@ -362,6 +362,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private bool _useFakeCodexAppAuth;
 
     [ObservableProperty]
+    private bool _manageCodexConfig;
+
+    [ObservableProperty]
+    private bool _manageClaudeCodeConfig;
+
+    [ObservableProperty]
     private long _billingUnitTokens = 1_000_000;
 
     [ObservableProperty]
@@ -565,6 +571,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _usageLogReader = new UsageLogReader(_paths);
         _codexConfigWriter = new CodexConfigWriter(_paths);
         _claudeCodeConfigWriter = new ClaudeCodeConfigWriter(_paths);
+        AppDomain.CurrentDomain.ProcessExit += OnProcessExitRestoreManagedConfigs;
         _codexSessionMigrationService = new CodexSessionMigrationService(_paths);
         _startupRegistrationService = new StartupRegistrationService();
         SyncStartupRegistrationFromConfig();
@@ -892,6 +899,23 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         await _proxyHostService.DisposeAsync();
         await _usageLogWriter.DisposeAsync();
         _sharedHttpClient.Dispose();
+        AppDomain.CurrentDomain.ProcessExit -= OnProcessExitRestoreManagedConfigs;
+    }
+
+    // Last-resort restore so a forced exit (e.g. process termination without a graceful shutdown)
+    // never leaves the user's ~/.codex or ~/.claude pointing at a stopped local proxy. Idempotent
+    // with the graceful stop path, which already restores originals before this fires.
+    private void OnProcessExitRestoreManagedConfigs(object? sender, EventArgs e)
+    {
+        try
+        {
+            _codexConfigWriter.RestoreOriginal();
+            _claudeCodeConfigWriter.RestoreOriginal();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort cleanup during shutdown; there is nothing more we can do here.
+        }
     }
 
     private void CreateNetworkServices()
@@ -1364,6 +1388,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _config.Proxy.Enabled = ProxyEnabled;
         _config.Proxy.PreserveCodexAppAuth = PreserveCodexAppAuth;
         _config.Proxy.UseFakeCodexAppAuth = UseFakeCodexAppAuth;
+        _config.Proxy.ManageCodexConfig = ManageCodexConfig;
+        _config.Proxy.ManageClaudeCodeConfig = ManageClaudeCodeConfig;
         _config.Network.ProxyMode = NetworkProxyMode;
         _config.Network.CustomProxyUrl = networkProxyUrl;
         _config.Network.BypassProxyOnLocal = NetworkProxyBypassOnLocal;
@@ -3646,6 +3672,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             NetworkConnectTimeoutSeconds = NormalizeConnectTimeoutSeconds(_config.Network.ConnectTimeoutSeconds);
             PreserveCodexAppAuth = _config.Proxy.PreserveCodexAppAuth;
             UseFakeCodexAppAuth = _config.Proxy.UseFakeCodexAppAuth;
+            ManageCodexConfig = _config.Proxy.ManageCodexConfig;
+            ManageClaudeCodeConfig = _config.Proxy.ManageClaudeCodeConfig;
             Endpoint = _config.Proxy.Endpoint;
             UiLanguage = _i18n.GetLanguage(_config.Ui.Language).Code;
             SelectedLanguage = _i18n.GetLanguage(UiLanguage);

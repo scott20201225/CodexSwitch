@@ -15,6 +15,14 @@ public sealed class ClaudeCodeConfigWriter
 
     public void Apply(AppConfig config)
     {
+        // Claude Code integration is opt-in. When it is disabled we never write ~/.claude/settings.json,
+        // and we only restore an original the user had if CodexSwitch previously managed the file.
+        if (!config.Proxy.ManageClaudeCodeConfig)
+        {
+            RestoreOriginal();
+            return;
+        }
+
         var provider = ResolveClaudeCodeProvider(config);
         if (provider is null)
         {
@@ -50,6 +58,8 @@ public sealed class ClaudeCodeConfigWriter
 
     public void RestoreOriginal()
     {
+        // Restores the user's captured original, or removes a settings file CodexSwitch generated.
+        // A file we never managed is left untouched (see ManagedFileBackup.RestoreOriginal).
         ManagedFileBackup.RestoreOriginal(_paths.ClaudeSettingsPath);
     }
 

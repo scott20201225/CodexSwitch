@@ -199,6 +199,10 @@
                                          IsChecked="{Binding PreserveCodexAppAuth}"/>
                         <cui:CodexSwitch Content="{i18n:Tr settings.auth.useFakeCodexAppAuth}"
                                          IsChecked="{Binding UseFakeCodexAppAuth}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.auth.manageCodexConfig}"
+                                         IsChecked="{Binding ManageCodexConfig}"/>
+                        <cui:CodexSwitch Content="{i18n:Tr settings.auth.manageClaudeCodeConfig}"
+                                         IsChecked="{Binding ManageClaudeCodeConfig}"/>
                         <cui:CodexField Label="{i18n:Tr settings.auth.inboundApiKey}">
                             <cui:CodexTextBox Text="{Binding InboundApiKey}"/>
                         </cui:CodexField>
