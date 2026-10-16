@@ -258,8 +258,7 @@ public sealed class UsageLogReader
         return record.Usage.InputTokens +
             record.Usage.CachedInputTokens +
             record.Usage.CacheCreationInputTokens +
-            record.Usage.OutputTokens +
-            record.Usage.ReasoningOutputTokens;
+            record.Usage.OutputTokens;
     }
 
     private static bool MatchesFilter(

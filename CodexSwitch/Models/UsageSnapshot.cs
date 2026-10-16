@@ -39,7 +39,7 @@ public sealed class RealtimeUsageSnapshot
 
     public long LiveOutputTokens { get; init; }
 
-    public long TotalOutputTokens => OutputTokens + ReasoningOutputTokens + LiveOutputTokens;
+    public long TotalOutputTokens => OutputTokens + LiveOutputTokens;
 
     public bool IsInputActive { get; init; }
 

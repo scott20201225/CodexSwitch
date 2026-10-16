@@ -142,7 +142,13 @@
                                          IsChecked="{Binding ClaudeCodeSkipDangerousModePermissionPrompt, Mode=TwoWay}"/>
                         <cui:CodexSwitch Content="{i18n:Tr claude.oneMillionContext}"
                                          IsChecked="{Binding ClaudeCodeOneMillionContextEnabled, Mode=TwoWay}"
-                                         IsEnabled="{Binding IsClaudeOneMillionContextAvailable}"/>
+                                         IsVisible="{Binding IsClaudeOneMillionContextAvailable}"/>
+                        <ui:CsText Text="{i18n:Tr claude.oneMillionDefault}"
+                                   Classes="muted"
+                                   IsVisible="{Binding IsClaudeOneMillionContextDefault}"/>
+                        <ui:CsText Text="{i18n:Tr claude.oneMillionUnknown}"
+                                   Classes="muted"
+                                   IsVisible="{Binding IsClaudeOneMillionContextUnknown}"/>
                     </StackPanel>
 
                     <cui:CodexButton Size="Small"

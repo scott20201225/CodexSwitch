@@ -1580,7 +1580,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             provider.ClaudeCode.Model = selectedModel;
             provider.ClaudeCode.EnableOneMillionContext =
                 provider.ClaudeCode.EnableOneMillionContext &&
-                ClaudeCodeConfigWriter.IsOneMillionContextModel(selectedModel);
+                ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, selectedModel));
         }
         else
         {
@@ -1811,7 +1811,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         provider.ClaudeCode.AlwaysThinkingEnabled = ClaudeCodeThinkEnabled;
         provider.ClaudeCode.SkipDangerousModePermissionPrompt = ClaudeCodeSkipDangerousModePermissionPrompt;
         provider.ClaudeCode.EnableOneMillionContext = ClaudeCodeOneMillionContextEnabled &&
-            ClaudeCodeConfigWriter.IsOneMillionContextModel(provider.ClaudeCode.Model);
+            ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, provider.ClaudeCode.Model));
         provider.UsageQuery = BuildSelectedUsageQuery();
         provider.Cost ??= new ProviderCostSettings();
         provider.Cost.FastMode = SelectedFastMode;
@@ -2000,7 +2000,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             AddClaudeCodeModelOptions(provider);
             var model = ResolveClaudeCodeModel(provider, provider.ClaudeCode.Model);
             if (provider.ClaudeCode.EnableOneMillionContext &&
-                ClaudeCodeConfigWriter.IsOneMillionContextModel(model))
+                ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, model)))
             {
                 model += "[1m]";
             }
@@ -2012,12 +2012,14 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             ClaudeCodeThinkEnabled = provider.ClaudeCode.AlwaysThinkingEnabled;
             ClaudeCodeSkipDangerousModePermissionPrompt = provider.ClaudeCode.SkipDangerousModePermissionPrompt;
             ClaudeCodeOneMillionContextEnabled = provider.ClaudeCode.EnableOneMillionContext &&
-                ClaudeCodeConfigWriter.IsOneMillionContextModel(model);
+                ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, model));
         }
         finally
         {
             _isLoadingClaudeCodeFields = false;
             OnPropertyChanged(nameof(IsClaudeOneMillionContextAvailable));
+            OnPropertyChanged(nameof(IsClaudeOneMillionContextDefault));
+            OnPropertyChanged(nameof(IsClaudeOneMillionContextUnknown));
         }
     }
 
@@ -2027,7 +2029,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         foreach (var model in provider.Models)
         {
             AddClaudeCodeModelOption(model.Id, seen);
-            if (ClaudeCodeConfigWriter.IsOneMillionContextModel(model.Id))
+            if (ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, model.Id)))
                 AddClaudeCodeModelOption(ClaudeCodeConfigWriter.StripOneMillionSuffix(model.Id) + "[1m]", seen);
         }
 
@@ -2086,7 +2088,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         provider.ClaudeCode.SkipDangerousModePermissionPrompt = ClaudeCodeSkipDangerousModePermissionPrompt;
         provider.ClaudeCode.EnableOneMillionContext =
             (ClaudeCodeOneMillionContextEnabled || modelRequestedOneMillion) &&
-            ClaudeCodeConfigWriter.IsOneMillionContextModel(model);
+            ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, model));
 
         _store.SaveConfig(_config);
         RefreshProviderRows();
@@ -3977,8 +3979,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         var totalTokens = filteredDashboard.InputTokens +
             filteredDashboard.CachedInputTokens +
             filteredDashboard.CacheCreationInputTokens +
-            filteredDashboard.OutputTokens +
-            filteredDashboard.ReasoningOutputTokens;
+            filteredDashboard.OutputTokens;
         UsageDashboardEstimatedCostText = DisplayFormatters.FormatCost(filteredDashboard.EstimatedCost);
         UsageDashboardTotalTokensText = DisplayFormatters.FormatTokenCount(totalTokens);
         var cachedTokens = filteredDashboard.CachedInputTokens + filteredDashboard.CacheCreationInputTokens;
@@ -5041,6 +5042,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     partial void OnClaudeCodeModelChanged(string value)
     {
         OnPropertyChanged(nameof(IsClaudeOneMillionContextAvailable));
+        OnPropertyChanged(nameof(IsClaudeOneMillionContextDefault));
+        OnPropertyChanged(nameof(IsClaudeOneMillionContextUnknown));
         if (!_isLoadingClaudeCodeFields && !IsClaudeOneMillionContextAvailable)
             ClaudeCodeOneMillionContextEnabled = false;
     }
@@ -5245,7 +5248,24 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public bool IsSelectedCodexOneMillionContextAvailable => SelectedSupportsCodex;
 
-    public bool IsClaudeOneMillionContextAvailable => ClaudeCodeConfigWriter.IsOneMillionContextModel(ClaudeCodeModel);
+    public bool IsClaudeOneMillionContextAvailable => ClaudeModelCapabilities.RequiresOneMillionBeta(SelectedClaudeUpstreamModel);
+
+    public bool IsClaudeOneMillionContextDefault => ClaudeModelCapabilities.HasDefaultOneMillionContext(SelectedClaudeUpstreamModel);
+
+    public bool IsClaudeOneMillionContextUnknown =>
+        !IsClaudeOneMillionContextAvailable && !IsClaudeOneMillionContextDefault;
+
+    private string SelectedClaudeUpstreamModel
+    {
+        get
+        {
+            var provider = _config.Providers.FirstOrDefault(item =>
+                string.Equals(item.Id, _config.ActiveClaudeCodeProviderId, StringComparison.OrdinalIgnoreCase));
+            return provider is null
+                ? ClaudeCodeModel
+                : ClaudeModelCapabilities.ResolveUpstreamModel(provider, ClaudeCodeModel);
+        }
+    }
 
     public string UpdateCheckButtonText => IsCheckingForUpdates ? T("update.checking") : T("settings.version.checkNow");
 
@@ -5311,7 +5331,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string OutputTokensText => DisplayFormatters.FormatTokenCount(OutputTokens);
 
-    public string TotalTokensText => DisplayFormatters.FormatTokenCount(InputTokens + CachedInputTokens + CacheCreationInputTokens + OutputTokens + ReasoningOutputTokens);
+    public string TotalTokensText => DisplayFormatters.FormatTokenCount(InputTokens + CachedInputTokens + CacheCreationInputTokens + OutputTokens);
 
     public string EstimatedCostText => DisplayFormatters.FormatCost(EstimatedCost);
 

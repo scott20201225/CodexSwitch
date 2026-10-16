@@ -11,6 +11,66 @@ namespace CodexSwitch.Tests;
 public sealed class AnthropicMessagesAdapterResponsesTests
 {
     [Fact]
+    public async Task HandleResponsesAsync_UsesAdaptiveThinkingForClaude47()
+    {
+        using var requestDocument = JsonDocument.Parse("""
+            {
+              "model": "claude-alias",
+              "reasoning": { "effort": "high" },
+              "input": "Hello"
+            }
+            """);
+        using var fixture = new AdapterFixture(requestDocument, """
+            {
+              "id": "msg_1",
+              "type": "message",
+              "role": "assistant",
+              "model": "claude-opus-4-7",
+              "content": [{ "type": "text", "text": "Hello" }],
+              "stop_reason": "end_turn",
+              "usage": { "input_tokens": 4, "output_tokens": 2 }
+            }
+            """);
+        fixture.Context.Model!.UpstreamModel = "claude-opus-4-7";
+
+        await fixture.InvokeAsync();
+
+        using var upstream = JsonDocument.Parse(fixture.Handler.Requests[0].Body);
+        var thinking = upstream.RootElement.GetProperty("thinking");
+        Assert.Equal("adaptive", thinking.GetProperty("type").GetString());
+        Assert.False(thinking.TryGetProperty("budget_tokens", out _));
+    }
+
+    [Fact]
+    public async Task HandleResponsesAsync_DoesNotInjectThinkingForUnknownModel()
+    {
+        using var requestDocument = JsonDocument.Parse("""
+            {
+              "model": "claude-alias",
+              "reasoning": { "effort": "high" },
+              "input": "Hello"
+            }
+            """);
+        using var fixture = new AdapterFixture(requestDocument, """
+            {
+              "id": "msg_1",
+              "type": "message",
+              "role": "assistant",
+              "model": "custom-gateway-model",
+              "content": [{ "type": "text", "text": "Hello" }],
+              "stop_reason": "end_turn",
+              "usage": { "input_tokens": 4, "output_tokens": 2 }
+            }
+            """);
+        fixture.Context.Model!.UpstreamModel = "custom-gateway-model";
+
+        await fixture.InvokeAsync();
+
+        using var upstream = JsonDocument.Parse(fixture.Handler.Requests[0].Body);
+        Assert.False(upstream.RootElement.TryGetProperty("thinking", out _));
+    }
+
+    [Fact]
     public async Task HandleResponsesAsync_ConvertsResponsesReasoningToAnthropicThinking()
     {
         using var requestDocument = JsonDocument.Parse(
@@ -85,6 +145,8 @@ public sealed class AnthropicMessagesAdapterResponsesTests
             }
             """);
 
+        fixture.Context.Model!.UpstreamModel = "claude-sonnet-4-5";
+
         await fixture.InvokeAsync();
 
         Assert.Single(fixture.Handler.Requests);
@@ -95,7 +157,7 @@ public sealed class AnthropicMessagesAdapterResponsesTests
 
         using var upstreamPayload = JsonDocument.Parse(upstream.Body);
         var root = upstreamPayload.RootElement;
-        Assert.Equal("claude-upstream", root.GetProperty("model").GetString());
+        Assert.Equal("claude-sonnet-4-5", root.GetProperty("model").GetString());
         Assert.Equal("enabled", root.GetProperty("thinking").GetProperty("type").GetString());
 
         var messages = root.GetProperty("messages").EnumerateArray().ToArray();

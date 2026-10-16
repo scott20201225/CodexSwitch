@@ -388,6 +388,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         JsonElement? toolChoiceValue = null;
         JsonElement? streamOptionsValue = null;
         JsonElement? requestedServiceTier = null;
+        JsonElement? thinkingValue = null;
         var stream = false;
         var wroteModel = false;
         var wroteServiceTier = false;
@@ -444,6 +445,9 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
                         break;
 
                     case "thinking":
+                        thinkingValue = property.Value.Clone();
+                        break;
+
                     case "container":
                     case "context_management":
                     case "mcp_servers":
@@ -471,6 +475,28 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
 
             if (toolChoiceValue.HasValue)
                 WriteMessagesChatToolChoice(writer, toolChoiceValue.Value);
+
+            if (thinkingValue.HasValue &&
+                upstreamModel.StartsWith("deepseek-", StringComparison.OrdinalIgnoreCase))
+            {
+                var thinking = thinkingValue.Value;
+                var enabled = !string.Equals(TryGetString(thinking, "type"), "disabled", StringComparison.OrdinalIgnoreCase);
+                writer.WritePropertyName("thinking");
+                writer.WriteStartObject();
+                writer.WriteString("type", enabled ? "enabled" : "disabled");
+                writer.WriteEndObject();
+                if (enabled)
+                {
+                    var budget = TryGetInt64(thinking, "budget_tokens");
+                    writer.WriteString("reasoning_effort", budget switch
+                    {
+                        null => "medium",
+                        <= 1024 => "low",
+                        <= 4096 => "medium",
+                        _ => "high"
+                    });
+                }
+            }
 
             if (wroteServiceTier || context.CostSettings.FastMode ||
                 !string.IsNullOrWhiteSpace(context.Model?.ServiceTier) ||
@@ -1034,6 +1060,15 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
 
     private static void WriteAnthropicContentBlocksFromChatMessage(Utf8JsonWriter writer, JsonElement message)
     {
+        var reasoningText = ExtractChatReasoningText(message);
+        if (!string.IsNullOrWhiteSpace(reasoningText))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "thinking");
+            writer.WriteString("thinking", reasoningText);
+            writer.WriteEndObject();
+        }
+
         foreach (var text in ExtractChatMessageTextParts(message))
             WriteAnthropicTextBlock(writer, text);
 
@@ -1253,6 +1288,24 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
             if (!choice.TryGetProperty("delta", out var delta) || delta.ValueKind != JsonValueKind.Object)
                 continue;
 
+            if (delta.TryGetProperty("reasoning_content", out var reasoningValue))
+            {
+                foreach (var text in EnumerateKnownTextParts(reasoningValue))
+                {
+                    if (text.Length == 0)
+                        continue;
+
+                    await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+                    await StopMessagesTextBlockAsync(httpContext, state, cancellationToken);
+                    await EnsureMessagesThinkingBlockStartedAsync(httpContext, state, cancellationToken);
+                    await ProtocolAdapterCommon.WriteSseEventAsync(
+                        httpContext,
+                        "content_block_delta",
+                        BuildMessagesThinkingDeltaEventJson(state.ThinkingBlockIndex.GetValueOrDefault(), text),
+                        cancellationToken);
+                }
+            }
+
             if (delta.TryGetProperty("content", out var contentValue))
             {
                 foreach (var text in EnumerateChatDeltaText(contentValue))
@@ -1261,6 +1314,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
                         continue;
 
                     await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+                    await StopMessagesThinkingBlockAsync(httpContext, state, cancellationToken);
                     await EnsureMessagesTextBlockStartedAsync(httpContext, state, cancellationToken);
                     state.MessageText.Append(text);
                     await ProtocolAdapterCommon.WriteSseEventAsync(
@@ -1312,6 +1366,39 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
             cancellationToken);
     }
 
+    private static async Task EnsureMessagesThinkingBlockStartedAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        CancellationToken cancellationToken)
+    {
+        if (state.ThinkingBlockOpen)
+            return;
+
+        state.ThinkingBlockIndex = state.NextContentBlockIndex++;
+        state.ThinkingBlockOpen = true;
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "content_block_start",
+            BuildMessagesThinkingBlockStartEventJson(state.ThinkingBlockIndex.Value),
+            cancellationToken);
+    }
+
+    private static async Task StopMessagesThinkingBlockAsync(
+        HttpContext httpContext,
+        MessagesChatStreamingState state,
+        CancellationToken cancellationToken)
+    {
+        if (!state.ThinkingBlockOpen || !state.ThinkingBlockIndex.HasValue)
+            return;
+
+        await ProtocolAdapterCommon.WriteSseEventAsync(
+            httpContext,
+            "content_block_stop",
+            BuildMessagesContentBlockStopEventJson(state.ThinkingBlockIndex.Value),
+            cancellationToken);
+        state.ThinkingBlockOpen = false;
+    }
+
     private static async Task StopMessagesTextBlockAsync(
         HttpContext httpContext,
         MessagesChatStreamingState state,
@@ -1335,6 +1422,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         CancellationToken cancellationToken)
     {
         await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+        await StopMessagesThinkingBlockAsync(httpContext, state, cancellationToken);
         await StopMessagesTextBlockAsync(httpContext, state, cancellationToken);
 
         var index = toolCallDelta.TryGetProperty("index", out var indexValue) &&
@@ -1393,6 +1481,7 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         CancellationToken cancellationToken)
     {
         await EnsureMessagesStreamStartedAsync(httpContext, state, cancellationToken);
+        await StopMessagesThinkingBlockAsync(httpContext, state, cancellationToken);
         await StopMessagesTextBlockAsync(httpContext, state, cancellationToken);
 
         foreach (var toolCall in state.ToolCalls.OrderBy(pair => pair.Key).Select(pair => pair.Value))
@@ -1465,6 +1554,38 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
             writer.WriteStartObject();
             writer.WriteString("type", "text");
             writer.WriteString("text", string.Empty);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesThinkingBlockStartEventJson(int index)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_start");
+            writer.WriteNumber("index", index);
+            writer.WritePropertyName("content_block");
+            writer.WriteStartObject();
+            writer.WriteString("type", "thinking");
+            writer.WriteString("thinking", string.Empty);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static string BuildMessagesThinkingDeltaEventJson(int index, string delta)
+    {
+        return ProtocolAdapterCommon.SerializeJson(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", "content_block_delta");
+            writer.WriteNumber("index", index);
+            writer.WritePropertyName("delta");
+            writer.WriteStartObject();
+            writer.WriteString("type", "thinking_delta");
+            writer.WriteString("thinking", delta);
             writer.WriteEndObject();
             writer.WriteEndObject();
         });
@@ -4533,6 +4654,10 @@ public sealed class OpenAiChatAdapter : IProviderProtocolAdapter
         public int? TextBlockIndex { get; set; }
 
         public bool TextBlockOpen { get; set; }
+
+        public int? ThinkingBlockIndex { get; set; }
+
+        public bool ThinkingBlockOpen { get; set; }
 
         public StringBuilder MessageText { get; } = new();
 

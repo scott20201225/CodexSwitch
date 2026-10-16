@@ -11,6 +11,82 @@ namespace CodexSwitch.Tests;
 public sealed class OpenAiChatAdapterMessagesTests
 {
     [Fact]
+    public async Task HandleMessagesAsync_MapsDeepSeekThinkingAndReturnsReasoningBlock()
+    {
+        using var requestDocument = JsonDocument.Parse("""
+            {
+              "model": "claude-alias",
+              "max_tokens": 64,
+              "thinking": { "type": "enabled" },
+              "messages": [{ "role": "user", "content": "Solve it." }]
+            }
+            """);
+        using var fixture = new AdapterFixture(requestDocument, """
+            {
+              "id": "chatcmpl-reasoning",
+              "model": "deepseek-reasoner",
+              "choices": [{
+                "message": {
+                  "role": "assistant",
+                  "reasoning_content": "First reason.",
+                  "content": "The answer."
+                },
+                "finish_reason": "stop"
+              }],
+              "usage": { "prompt_tokens": 8, "completion_tokens": 6 }
+            }
+            """);
+        fixture.Context.Model!.UpstreamModel = "deepseek-reasoner";
+
+        await fixture.InvokeAsync();
+
+        using var upstream = JsonDocument.Parse(fixture.Handler.Requests[0].Body);
+        Assert.Equal("enabled", upstream.RootElement.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.Equal("medium", upstream.RootElement.GetProperty("reasoning_effort").GetString());
+        using var downstream = JsonDocument.Parse(fixture.ResponseBody());
+        var blocks = downstream.RootElement.GetProperty("content").EnumerateArray().ToArray();
+        Assert.Equal("thinking", blocks[0].GetProperty("type").GetString());
+        Assert.Equal("First reason.", blocks[0].GetProperty("thinking").GetString());
+        Assert.False(blocks[0].TryGetProperty("signature", out _));
+        Assert.Equal("The answer.", blocks[1].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task HandleMessagesAsync_StreamsReasoningBeforeTextAndToolUse()
+    {
+        using var requestDocument = JsonDocument.Parse("""
+            {
+              "model": "claude-alias",
+              "stream": true,
+              "messages": [{ "role": "user", "content": "Look it up." }]
+            }
+            """);
+        using var fixture = new AdapterFixture(requestDocument, """
+            data: {"id":"chatcmpl-stream","model":"gpt-upstream","choices":[{"index":0,"delta":{"reasoning_content":"Think first."},"finish_reason":null}]}
+
+            data: {"id":"chatcmpl-stream","model":"gpt-upstream","choices":[{"index":0,"delta":{"content":"Checking."},"finish_reason":null}]}
+
+            data: {"id":"chatcmpl-stream","model":"gpt-upstream","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
+
+            data: [DONE]
+
+            """, mediaType: "text/event-stream");
+
+        await fixture.InvokeAsync();
+
+        var events = fixture.ResponseBody();
+        var thinking = events.IndexOf("\"type\":\"thinking\"", StringComparison.Ordinal);
+        var text = events.IndexOf("\"type\":\"text\"", StringComparison.Ordinal);
+        var tool = events.IndexOf("\"type\":\"tool_use\"", StringComparison.Ordinal);
+        Assert.True(thinking >= 0 && text > thinking && tool > text);
+        Assert.Contains("\"type\":\"thinking_delta\",\"thinking\":\"Think first.\"", events);
+        Assert.Contains("\"index\":0,\"content_block\":{\"type\":\"thinking\"", events);
+        Assert.Contains("\"index\":1,\"content_block\":{\"type\":\"text\"", events);
+        Assert.Contains("\"index\":2,\"content_block\":{\"type\":\"tool_use\"", events);
+        Assert.Contains("event: message_stop", events);
+    }
+
+    [Fact]
     public async Task HandleMessagesAsync_NonStreaming_ConvertsAnthropicMessagesToChatCompletions()
     {
         using var requestDocument = JsonDocument.Parse(

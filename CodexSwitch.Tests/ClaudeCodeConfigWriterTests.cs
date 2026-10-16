@@ -10,6 +10,37 @@ public sealed class ClaudeCodeConfigWriterTests : IDisposable
         "CodexSwitchTests",
         Guid.NewGuid().ToString("N"));
 
+    [Theory]
+    [InlineData("claude-sonnet-4-5", false, true, false)]
+    [InlineData("claude-opus-4-7", true, false, true)]
+    [InlineData("claude-haiku-5-5", true, false, true)]
+    [InlineData("custom-model", false, false, false)]
+    public void ModelCapabilities_SeparateDefaultContextBetaAndThinking(
+        string model, bool defaultContext, bool betaHeader, bool adaptiveThinking)
+    {
+        Assert.Equal(defaultContext, ClaudeModelCapabilities.HasDefaultOneMillionContext(model));
+        Assert.Equal(betaHeader, ClaudeModelCapabilities.RequiresOneMillionBeta(model));
+        Assert.Equal(adaptiveThinking, ClaudeModelCapabilities.UsesAdaptiveThinking(model));
+    }
+
+    [Fact]
+    public void Apply_DoesNotAddLegacyOneMillionSuffixToDefaultContextModel()
+    {
+        var paths = CreatePaths("default-1m");
+        var config = CreateConfig(manageClaudeCode: true);
+        var provider = Assert.Single(config.Providers);
+        provider.ClaudeCode.Model = "claude-opus-4-7";
+        provider.ClaudeCode.EnableOneMillionContext = true;
+        provider.Models.Clear();
+        provider.Models.Add(new ModelRouteConfig { Id = "claude-opus-4-7" });
+
+        new ClaudeCodeConfigWriter(paths).Apply(config);
+
+        var settings = File.ReadAllText(paths.ClaudeSettingsPath);
+        Assert.Contains("claude-opus-4-7", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("[1m]", settings, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Apply_LeavesUserSettingsUntouched_WhenManageDisabled()
     {

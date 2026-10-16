@@ -1439,7 +1439,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
         var provider = Assert.Single(dashboard.ProviderSummaries);
         Assert.Equal("openai", provider.ProviderId);
         Assert.Equal(2, provider.Requests);
-        Assert.Equal(2_180, provider.Tokens);
+        Assert.Equal(2_130, provider.Tokens);
         Assert.Equal(0.5d, provider.SuccessRate);
         var model = Assert.Single(dashboard.ModelSummaries);
         Assert.Equal("gpt-5.5", model.Model);
@@ -1524,7 +1524,7 @@ public sealed class UiV2InfrastructureTests : IDisposable
         Assert.Equal(1, snapshot.Requests);
         Assert.Equal(0, snapshot.Errors);
         Assert.Equal(125, snapshot.TotalInputTokens);
-        Assert.Equal(43, snapshot.TotalOutputTokens);
+        Assert.Equal(40, snapshot.TotalOutputTokens);
 
         var expired = meter.GetRecentSnapshot(TimeSpan.FromMinutes(1), now.AddSeconds(61));
         Assert.Equal(0, expired.Requests);

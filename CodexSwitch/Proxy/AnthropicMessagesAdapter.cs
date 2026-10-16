@@ -306,7 +306,7 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
     {
         var root = context.RequestRoot;
         var upstreamModel = ProtocolAdapterCommon.ResolveUpstreamModel(context.Provider, context.Model);
-        var thinkingConfig = ExtractThinkingConfig(root);
+        var thinkingConfig = ExtractThinkingConfig(root, upstreamModel);
         var toolChoicePlan = ParseToolChoice(root, thinkingConfig.Enabled);
         if (thinkingConfig.Enabled && IsThinkingIncompatibleWithToolChoice(toolChoicePlan))
             thinkingConfig = ThinkingConfig.Disabled;
@@ -459,8 +459,9 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
             {
                 writer.WritePropertyName("thinking");
                 writer.WriteStartObject();
-                writer.WriteString("type", "enabled");
-                writer.WriteNumber("budget_tokens", thinkingConfig.BudgetTokens);
+                writer.WriteString("type", thinkingConfig.Adaptive ? "adaptive" : "enabled");
+                if (!thinkingConfig.Adaptive)
+                    writer.WriteNumber("budget_tokens", thinkingConfig.BudgetTokens);
                 writer.WriteString("display", "summarized");
                 writer.WriteEndObject();
             }
@@ -511,13 +512,19 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         // Ignore incompatible format hints instead of rejecting migration traffic.
     }
 
-    private static ThinkingConfig ExtractThinkingConfig(JsonElement root)
+    private static ThinkingConfig ExtractThinkingConfig(JsonElement root, string upstreamModel)
     {
         if (!root.TryGetProperty("reasoning", out var reasoning) || reasoning.ValueKind != JsonValueKind.Object)
             return ThinkingConfig.Disabled;
 
         var effort = TryGetString(reasoning, "effort");
         if (string.IsNullOrWhiteSpace(effort) || string.Equals(effort, "none", StringComparison.OrdinalIgnoreCase))
+            return ThinkingConfig.Disabled;
+
+        if (ClaudeModelCapabilities.UsesAdaptiveThinking(upstreamModel))
+            return new ThinkingConfig(true, 0, true);
+
+        if (!ClaudeModelCapabilities.SupportsManualThinking(upstreamModel))
             return ThinkingConfig.Disabled;
 
         return effort switch
@@ -3071,7 +3078,7 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         var betaValues = inboundBetaValues.ToList();
         var upstreamModel = ResolveDirectMessagesModel(context, requestModel);
         if (provider.ClaudeCode.EnableOneMillionContext &&
-            ClaudeCodeConfigWriter.IsOneMillionContextModel(upstreamModel) &&
+            ClaudeModelCapabilities.RequiresOneMillionBeta(upstreamModel) &&
             !betaValues.Any(value =>
                 !string.IsNullOrWhiteSpace(value) &&
                 value.Contains("context-1m-2025-08-07", StringComparison.OrdinalIgnoreCase)))
@@ -3396,7 +3403,7 @@ public sealed class AnthropicMessagesAdapter : IProviderProtocolAdapter
         }
     }
 
-    private sealed record ThinkingConfig(bool Enabled, int BudgetTokens)
+    private sealed record ThinkingConfig(bool Enabled, int BudgetTokens, bool Adaptive = false)
     {
         public static ThinkingConfig Disabled { get; } = new(false, 0);
     }

@@ -70,14 +70,58 @@ public sealed class CodexConfigWriterTests : IDisposable
         Assert.Contains("model = \"gpt-5.5\"", configToml, StringComparison.Ordinal);
         Assert.Contains("model_provider = \"meteor-ai\"", configToml, StringComparison.Ordinal);
         Assert.Contains("base_url = \"http://127.0.0.1:12785/v1\"", configToml, StringComparison.Ordinal);
-        Assert.Contains("responses_websockets_v2 = true", configToml, StringComparison.Ordinal);
-        Assert.Contains("prevent_idle_sleep = true", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("responses_websockets_v2", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("approval_policy", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("sandbox_mode", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("model_reasoning_effort", configToml, StringComparison.Ordinal);
         Assert.True(File.Exists(BackupPath(paths.CodexConfigPath)));
         Assert.Equal("model = \"user-model\"\n", File.ReadAllText(BackupPath(paths.CodexConfigPath)));
 
         var authJson = File.ReadAllText(paths.CodexAuthPath);
         Assert.Contains("\"auth_mode\": \"apikey\"", authJson, StringComparison.Ordinal);
         Assert.Contains("\"OPENAI_API_KEY\": \"local-secret\"", authJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Apply_RestoresRetiredManagedSettingsFromBackup_AndPreservesUserEdits()
+    {
+        var paths = new AppPaths(
+            Path.Combine(_tempDirectory, "migration-appdata"),
+            Path.Combine(_tempDirectory, "migration-codex"));
+        Directory.CreateDirectory(paths.CodexDirectory);
+        File.WriteAllText(paths.CodexConfigPath + ".bak", """
+            approval_policy = "on-request"
+            sandbox_mode = "read-only"
+            model_reasoning_effort = "medium"
+
+            [features]
+            responses_websockets_v2 = false
+            """);
+        File.WriteAllText(paths.CodexConfigPath, """
+            model = "gpt-5.5"
+            approval_policy = "never"
+            sandbox_mode = "workspace-write"
+            model_reasoning_effort = "xhigh"
+            personality = "friendly"
+
+            [features]
+            responses_websockets_v2 = true
+            prevent_idle_sleep = true
+
+            [windows]
+            sandbox = "elevated"
+            """);
+
+        new CodexConfigWriter(paths).Apply(new AppConfig());
+
+        var configToml = File.ReadAllText(paths.CodexConfigPath);
+        Assert.Contains("approval_policy = \"on-request\"", configToml, StringComparison.Ordinal);
+        Assert.Contains("sandbox_mode = \"workspace-write\"", configToml, StringComparison.Ordinal);
+        Assert.Contains("model_reasoning_effort = \"medium\"", configToml, StringComparison.Ordinal);
+        Assert.Contains("responses_websockets_v2 = false", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("personality =", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("prevent_idle_sleep =", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("sandbox = \"elevated\"", configToml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -287,7 +331,7 @@ public sealed class CodexConfigWriterTests : IDisposable
         Assert.Contains("command = \"npx\"", configToml, StringComparison.Ordinal);
         Assert.Contains("args = [\"-y\", \"@modelcontextprotocol/server-filesystem\"]", configToml, StringComparison.Ordinal);
         Assert.Contains("user_experiment = true", configToml, StringComparison.Ordinal);
-        Assert.Contains("responses_websockets_v2 = true", configToml, StringComparison.Ordinal);
+        Assert.DoesNotContain("responses_websockets_v2", configToml, StringComparison.Ordinal);
         Assert.Contains("model_context_window = 1000000", configToml, StringComparison.Ordinal);
         Assert.Contains("model_auto_compact_token_limit = 900000", configToml, StringComparison.Ordinal);
     }

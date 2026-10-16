@@ -15,15 +15,8 @@ public sealed class CodexConfigWriter
         "model",
         "model_provider",
         "service_tier",
-        "disable_response_storage",
-        "approval_policy",
-        "sandbox_mode",
-        "model_supports_reasoning_summaries",
-        "rmcp_client",
-        "model_reasoning_effort",
         "model_context_window",
-        "model_auto_compact_token_limit",
-        "personality"
+        "model_auto_compact_token_limit"
     ];
     private static readonly string[] ProviderManagedKeyOrder =
     [
@@ -33,27 +26,37 @@ public sealed class CodexConfigWriter
         "supports_websockets",
         "requires_openai_auth"
     ];
-    private static readonly string[] FeaturesManagedKeyOrder =
-    [
-        "unified_exec",
-        "shell_snapshot",
-        "steer",
-        "skills",
-        "powershell_utf8",
-        "collaboration_modes",
-        "fast_mode",
-        "multi_agent",
-        "responses_websockets_v2",
-        "terminal_resize_reflow",
-        "memories",
-        "external_migration",
-        "goals",
-        "prevent_idle_sleep"
-    ];
-    private static readonly string[] WindowsManagedKeyOrder =
-    [
-        "sandbox"
-    ];
+    private static readonly Dictionary<string, string> RetiredRootDefaults = new(StringComparer.Ordinal)
+    {
+        ["disable_response_storage"] = "true",
+        ["approval_policy"] = "\"never\"",
+        ["sandbox_mode"] = "\"danger-full-access\"",
+        ["model_supports_reasoning_summaries"] = "true",
+        ["rmcp_client"] = "true",
+        ["model_reasoning_effort"] = "\"xhigh\"",
+        ["personality"] = "\"friendly\""
+    };
+    private static readonly Dictionary<string, string> RetiredFeatureDefaults = new(StringComparer.Ordinal)
+    {
+        ["unified_exec"] = "true",
+        ["shell_snapshot"] = "true",
+        ["steer"] = "true",
+        ["skills"] = "true",
+        ["powershell_utf8"] = "true",
+        ["collaboration_modes"] = "true",
+        ["fast_mode"] = "true",
+        ["multi_agent"] = "true",
+        ["responses_websockets_v2"] = "true",
+        ["terminal_resize_reflow"] = "true",
+        ["memories"] = "true",
+        ["external_migration"] = "true",
+        ["goals"] = "true",
+        ["prevent_idle_sleep"] = "true"
+    };
+    private static readonly Dictionary<string, string> RetiredWindowsDefaults = new(StringComparer.Ordinal)
+    {
+        ["sandbox"] = "\"elevated\""
+    };
     private const string FakeCodexAppAuthJson = """
 {
   "_note": "Fake Codex App auth fixture for local UI/schema testing only. These tokens are intentionally invalid and will not authenticate with OpenAI services.",
@@ -103,7 +106,11 @@ public sealed class CodexConfigWriter
         var existing = File.Exists(_paths.CodexConfigPath)
             ? File.ReadAllText(_paths.CodexConfigPath)
             : "";
-        var merged = MergeConfigToml(existing, config);
+        var backupPath = ManagedFileBackup.GetBackupPath(_paths.CodexConfigPath);
+        var original = File.Exists(backupPath)
+            ? File.ReadAllText(backupPath)
+            : ManagedFileBackup.HasBackup(_paths.CodexConfigPath) ? "" : null;
+        var merged = MergeConfigToml(existing, config, original);
         WriteTextIfChanged(_paths.CodexConfigPath, merged, existing);
     }
 
@@ -173,17 +180,15 @@ public sealed class CodexConfigWriter
             !content.Contains("fake-refresh-token-for-local-test-only", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string MergeConfigToml(string existing, AppConfig config)
+    private static string MergeConfigToml(string existing, AppConfig config, string? original)
     {
         var sections = ParseTomlSections(existing);
+        if (original is not null)
+            RestoreRetiredManagedKeys(sections, ParseTomlSections(original));
         var rootAssignments = CreateRootAssignments(config);
         var providerAssignments = CreateProviderAssignments(BuildClientEndpoint(config.Proxy), ShouldEnableWebSockets(config));
-        var featureAssignments = CreateFeatureAssignments();
-        var windowsAssignments = CreateWindowsAssignments();
 
         var hasProviderSection = false;
-        var hasFeatureSection = false;
-        var hasWindowsSection = false;
 
         foreach (var section in sections)
         {
@@ -200,28 +205,54 @@ public sealed class CodexConfigWriter
                 continue;
             }
 
-            if (string.Equals(section.HeaderName, "[features]", StringComparison.Ordinal))
-            {
-                hasFeatureSection = true;
-                section.Lines = MergeManagedLines(section.Lines, featureAssignments, FeaturesManagedKeyOrder);
-                continue;
-            }
-
-            if (string.Equals(section.HeaderName, "[windows]", StringComparison.Ordinal))
-            {
-                hasWindowsSection = true;
-                section.Lines = MergeManagedLines(section.Lines, windowsAssignments, WindowsManagedKeyOrder);
-            }
         }
 
         if (!hasProviderSection)
             sections.Add(CreateSection("[model_providers.meteor-ai]", providerAssignments, ProviderManagedKeyOrder));
-        if (!hasFeatureSection)
-            sections.Add(CreateSection("[features]", featureAssignments, FeaturesManagedKeyOrder));
-        if (!hasWindowsSection)
-            sections.Add(CreateSection("[windows]", windowsAssignments, WindowsManagedKeyOrder));
 
         return SerializeTomlSections(sections);
+    }
+
+    private static void RestoreRetiredManagedKeys(List<TomlSection> sections, List<TomlSection> originals)
+    {
+        foreach (var section in sections)
+        {
+            var defaults = section.HeaderName switch
+            {
+                null => RetiredRootDefaults,
+                "[features]" => RetiredFeatureDefaults,
+                "[windows]" => RetiredWindowsDefaults,
+                _ => null
+            };
+            if (defaults is null)
+                continue;
+
+            var originalLines = originals.FirstOrDefault(item => item.HeaderName == section.HeaderName)?.Lines ?? [];
+            var originalValues = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var line in originalLines)
+            {
+                if (TryParseTomlAssignment(line, out var key, out _) && defaults.ContainsKey(key))
+                    originalValues[key] = line;
+            }
+
+            var restored = new HashSet<string>(StringComparer.Ordinal);
+            var lines = new List<string>(section.Lines.Count);
+            foreach (var line in section.Lines)
+            {
+                if (!TryParseTomlAssignment(line, out var key, out _) ||
+                    !defaults.TryGetValue(key, out var retiredValue) ||
+                    !string.Equals(line[(line.IndexOf('=') + 1)..].Trim(), retiredValue, StringComparison.Ordinal))
+                {
+                    lines.Add(line);
+                    continue;
+                }
+
+                if (originalValues.TryGetValue(key, out var originalLine) && restored.Add(key))
+                    lines.Add(originalLine);
+            }
+
+            section.Lines = lines;
+        }
     }
 
     private static Dictionary<string, string?> CreateRootAssignments(AppConfig config)
@@ -231,15 +262,8 @@ public sealed class CodexConfigWriter
             ["model"] = FormatTomlString(ManagedModel),
             ["model_provider"] = FormatTomlString(ManagedProviderId),
             ["service_tier"] = ShouldEnableFastServiceTier(config) ? FormatTomlString("fast") : null,
-            ["disable_response_storage"] = "true",
-            ["approval_policy"] = FormatTomlString("never"),
-            ["sandbox_mode"] = FormatTomlString("danger-full-access"),
-            ["model_supports_reasoning_summaries"] = "true",
-            ["rmcp_client"] = "true",
-            ["model_reasoning_effort"] = FormatTomlString("xhigh"),
             ["model_context_window"] = ShouldEnableOneMillionContext(config) ? OneMillionContextWindowTokens.ToString(CultureInfo.InvariantCulture) : null,
-            ["model_auto_compact_token_limit"] = ShouldEnableOneMillionContext(config) ? OneMillionAutoCompactTokenLimit.ToString(CultureInfo.InvariantCulture) : null,
-            ["personality"] = FormatTomlString("friendly")
+            ["model_auto_compact_token_limit"] = ShouldEnableOneMillionContext(config) ? OneMillionAutoCompactTokenLimit.ToString(CultureInfo.InvariantCulture) : null
         };
     }
 
@@ -252,35 +276,6 @@ public sealed class CodexConfigWriter
             ["wire_api"] = FormatTomlString("responses"),
             ["supports_websockets"] = supportsWebSockets ? "true" : null,
             ["requires_openai_auth"] = "true"
-        };
-    }
-
-    private static Dictionary<string, string?> CreateFeatureAssignments()
-    {
-        return new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["unified_exec"] = "true",
-            ["shell_snapshot"] = "true",
-            ["steer"] = "true",
-            ["skills"] = "true",
-            ["powershell_utf8"] = "true",
-            ["collaboration_modes"] = "true",
-            ["fast_mode"] = "true",
-            ["multi_agent"] = "true",
-            ["responses_websockets_v2"] = "true",
-            ["terminal_resize_reflow"] = "true",
-            ["memories"] = "true",
-            ["external_migration"] = "true",
-            ["goals"] = "true",
-            ["prevent_idle_sleep"] = "true"
-        };
-    }
-
-    private static Dictionary<string, string?> CreateWindowsAssignments()
-    {
-        return new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["sandbox"] = FormatTomlString("elevated")
         };
     }
 

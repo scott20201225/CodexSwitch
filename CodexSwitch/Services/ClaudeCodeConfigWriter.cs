@@ -95,7 +95,8 @@ public sealed class ClaudeCodeConfigWriter
             model = provider.Models.FirstOrDefault()?.Id ?? "claude-sonnet-4-5";
 
         model = StripOneMillionSuffix(model);
-        return provider.ClaudeCode.EnableOneMillionContext && IsOneMillionContextModel(model)
+        return provider.ClaudeCode.EnableOneMillionContext &&
+            ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, model))
             ? model + "[1m]"
             : model;
     }
@@ -110,7 +111,7 @@ public sealed class ClaudeCodeConfigWriter
 
             var id = StripOneMillionSuffix(model.Id.Trim());
             models.Add(id);
-            if (IsOneMillionContextModel(id))
+            if (ClaudeModelCapabilities.RequiresOneMillionBeta(ClaudeModelCapabilities.ResolveUpstreamModel(provider, id)))
                 models.Add(id + "[1m]");
         }
 
@@ -130,9 +131,8 @@ public sealed class ClaudeCodeConfigWriter
         if (string.IsNullOrWhiteSpace(model))
             return false;
 
-        var normalized = StripOneMillionSuffix(model).ToLowerInvariant();
-        return string.Equals(normalized, "sonnet", StringComparison.Ordinal) ||
-            normalized.StartsWith("claude-sonnet-4", StringComparison.Ordinal);
+        return ClaudeModelCapabilities.HasDefaultOneMillionContext(model) ||
+            ClaudeModelCapabilities.RequiresOneMillionBeta(model);
     }
 
     public static string StripOneMillionSuffix(string model)
