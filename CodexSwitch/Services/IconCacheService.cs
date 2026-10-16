@@ -144,6 +144,10 @@ public sealed class IconCacheService
             EnsureIconAsync("deepseek", theme, cancellationToken),
             EnsureIconAsync("xiaomi", theme, cancellationToken),
             EnsureIconAsync("gemini", theme, cancellationToken),
+            EnsureIconAsync("qwen", theme, cancellationToken),
+            EnsureIconAsync("zhipu", theme, cancellationToken),
+            EnsureIconAsync("moonshot", theme, cancellationToken),
+            EnsureIconAsync("doubao", theme, cancellationToken),
             EnsureIconAsync(RoutinAiIconSlug, cancellationToken));
     }
 
@@ -161,7 +165,16 @@ public sealed class IconCacheService
             return "gemini";
         if (normalized.StartsWith("mimo", StringComparison.Ordinal))
             return "xiaomi";
+        if (normalized.StartsWith("qwen", StringComparison.Ordinal))
+            return "qwen";
+        if (normalized.StartsWith("glm", StringComparison.Ordinal) || normalized.StartsWith("zhipu", StringComparison.Ordinal))
+            return "zhipu";
+        if (normalized.StartsWith("kimi", StringComparison.Ordinal) || normalized.StartsWith("moonshot", StringComparison.Ordinal))
+            return "moonshot";
+        if (normalized.StartsWith("doubao", StringComparison.Ordinal))
+            return "doubao";
         if (normalized.StartsWith("gpt", StringComparison.Ordinal) ||
+            normalized.StartsWith("codex", StringComparison.Ordinal) ||
             normalized.StartsWith("o1", StringComparison.Ordinal) ||
             normalized.StartsWith("o3", StringComparison.Ordinal) ||
             normalized.StartsWith("o4", StringComparison.Ordinal))

@@ -56,13 +56,20 @@ public sealed class BuiltInCatalogMigrationTests
             var upgraded = store.LoadPricing();
 
             Assert.Equal(BuiltInModelCatalog.PricingSchemaVersion, upgraded.SchemaVersion);
+            Assert.Contains(upgraded.Models, rule => rule.Id == "gpt-6.1-sol");
             Assert.Contains(upgraded.Models, rule => rule.Id == "gpt-5.4");
             Assert.Contains(upgraded.Models, rule => rule.Id == "gpt-5.4-mini");
-            Assert.Contains(upgraded.Models, rule => rule.Id == "gpt-5.3-codex");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "codex-mini-latest");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "claude-opus-5-5");
             Assert.Contains(upgraded.Models, rule => rule.Id == "claude-opus-4-7");
             Assert.Contains(upgraded.Models, rule => rule.Id == "claude-3-5-sonnet");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "deepseek-v4.1-flash");
             Assert.Contains(upgraded.Models, rule => rule.Id == "deepseek-v4-flash");
             Assert.Contains(upgraded.Models, rule => rule.Id == "deepseek-v4-pro");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "qwen3-coder-plus");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "glm-5-plus");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "kimi-k2.5");
+            Assert.Contains(upgraded.Models, rule => rule.Id == "doubao-1.5-pro");
             Assert.Contains(upgraded.Models, rule => rule.Id == "mimo-v2.5-pro");
             Assert.Contains(upgraded.Models, rule => rule.Id == "mimo-v2.5");
 
@@ -70,7 +77,12 @@ public sealed class BuiltInCatalogMigrationTests
             Assert.Equal(5m, gpt55.Input.Tiers[0].PricePerUnit);
             Assert.Equal(BuiltInModelCatalog.OpenAiLongContextThresholdTokens, gpt55.Input.Tiers[0].UpToTokens);
             Assert.True(upgraded.FastMode.ModelOverrides.ContainsKey("gpt-5.5*"));
-            Assert.True(upgraded.FastMode.ModelOverrides.ContainsKey("gpt-5"));
+
+            var claudeOpus47 = Assert.Single(upgraded.Models, rule => rule.Id == "claude-opus-4-7");
+            Assert.Contains("claude-opus-4.7", claudeOpus47.Aliases);
+
+            var deepSeekV41Flash = Assert.Single(upgraded.Models, rule => rule.Id == "deepseek-v4.1-flash");
+            Assert.Contains("deepseek-flash", deepSeekV41Flash.Aliases);
 
             var deepSeekFlash = Assert.Single(upgraded.Models, rule => rule.Id == "deepseek-v4-flash");
             Assert.Contains("deepseek-chat", deepSeekFlash.Aliases);
@@ -139,15 +151,17 @@ public sealed class BuiltInCatalogMigrationTests
             var xiaomi = Assert.Single(upgraded.Providers, provider =>
                 string.Equals(provider.BuiltinId, ProviderTemplateCatalog.XiaomiBuiltinId, StringComparison.OrdinalIgnoreCase));
 
+            Assert.Contains(openAi.Models, model => model.Id == "gpt-6.1-sol");
             Assert.Contains(openAi.Models, model => model.Id == "gpt-5.4");
             Assert.Contains(openAi.Models, model => model.Id == "gpt-5.4-mini");
-            Assert.Contains(openAi.Models, model => model.Id == "gpt-5.3-codex");
             AssertDefaultConversion(openAi);
+            Assert.Contains(anthropic.Models, model => model.Id == "claude-opus-5-5");
             Assert.Contains(anthropic.Models, model => model.Id == "claude-opus-4-7");
             Assert.Contains(anthropic.Models, model => model.Id == "claude-3-5-sonnet");
             AssertDefaultConversion(anthropic);
             Assert.Equal("https://api.deepseek.com/v1", deepSeek.BaseUrl);
             Assert.Equal(ProviderProtocol.OpenAiChat, deepSeek.Protocol);
+            Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-v4.1-flash");
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-v4-flash");
             Assert.Contains(deepSeek.Models, model => model.Id == "deepseek-reasoner");
             Assert.All(deepSeek.Models, model => Assert.Equal(ProviderProtocol.OpenAiChat, model.Protocol));
@@ -185,6 +199,72 @@ public sealed class BuiltInCatalogMigrationTests
         Assert.Contains(provider.Models, model => model.Id == "mimo-v2.5-pro");
         Assert.DoesNotContain(provider.Models, model => model.Id == "gpt-5.4");
         AssertDefaultConversion(provider);
+    }
+
+    [Fact]
+    public void DomesticTemplates_UseOpenAiChatEndpointsAndExpectedRoutes()
+    {
+        var qwen = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.QwenBuiltinId, []);
+        Assert.Equal("https://dashscope.aliyuncs.com/compatible-mode/v1", qwen.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiChat, qwen.Protocol);
+        Assert.Equal("qwen3-coder-plus", qwen.DefaultModel);
+        Assert.Equal("qwen", qwen.IconSlug);
+        Assert.True(qwen.SupportsClaudeCode);
+        Assert.Contains(qwen.Models, model => model.Id == "qwen3-coder-plus");
+
+        var zhipu = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.ZhipuBuiltinId, []);
+        Assert.Equal("https://open.bigmodel.cn/api/paas/v4", zhipu.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiChat, zhipu.Protocol);
+        Assert.Equal("glm-5-plus", zhipu.DefaultModel);
+        Assert.Equal("zhipu", zhipu.IconSlug);
+        Assert.True(zhipu.SupportsClaudeCode);
+        Assert.Contains(zhipu.Models, model => model.Id == "glm-5-plus");
+
+        var moonshot = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.MoonshotBuiltinId, []);
+        Assert.Equal("https://api.moonshot.cn/v1", moonshot.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiChat, moonshot.Protocol);
+        Assert.Equal("kimi-k2.5", moonshot.DefaultModel);
+        Assert.Equal("moonshot", moonshot.IconSlug);
+        Assert.True(moonshot.SupportsClaudeCode);
+        Assert.Contains(moonshot.Models, model => model.Id == "kimi-k2.5");
+
+        var doubao = ProviderTemplateCatalog.CreateProvider(ProviderTemplateCatalog.DoubaoBuiltinId, []);
+        Assert.Equal("https://ark.cn-beijing.volces.com/api/v3", doubao.BaseUrl);
+        Assert.Equal(ProviderProtocol.OpenAiChat, doubao.Protocol);
+        Assert.Equal("doubao-1.5-pro", doubao.DefaultModel);
+        Assert.Equal("doubao", doubao.IconSlug);
+        Assert.True(doubao.SupportsClaudeCode);
+        Assert.Contains(doubao.Models, model => model.Id == "doubao-1.5-pro");
+    }
+
+    [Theory]
+    [InlineData("claude-opus-4-7", "claude-opus-4.7")]
+    [InlineData("claude-sonnet-4-6", "claude-sonnet-4.6")]
+    [InlineData("claude-opus-5-5", "claude-opus-5.5")]
+    [InlineData("claude-sonnet-5-5", "claude-sonnet-5.5")]
+    [InlineData("claude-3-7-sonnet", "claude-3.7-sonnet")]
+    [InlineData("deepseek-v4.1-flash", "deepseek-flash")]
+    public void PricingRules_SupportOfficialNamingAndAliases(string canonicalId, string aliasOrInput)
+    {
+        var catalog = new ModelPricingCatalog
+        {
+            SchemaVersion = BuiltInModelCatalog.PricingSchemaVersion,
+            Models = BuiltInModelCatalog.CreatePricingRules()
+        };
+        var calculator = new PriceCalculator(catalog);
+
+        var costCanonical = calculator.Calculate(
+            canonicalId,
+            new UsageTokens(10_000, 2_000, 5_000),
+            new ProviderCostSettings());
+
+        var costAlias = calculator.Calculate(
+            aliasOrInput,
+            new UsageTokens(10_000, 2_000, 5_000),
+            new ProviderCostSettings());
+
+        Assert.True(costCanonical.Total > 0m);
+        Assert.Equal(costCanonical.Total, costAlias.Total);
     }
 
     [Fact]

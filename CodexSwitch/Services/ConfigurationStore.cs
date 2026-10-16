@@ -627,7 +627,9 @@ public sealed class ConfigurationStore
 
     private static bool IsDeepSeekRouteId(string id)
     {
-        return string.Equals(id, "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase) ||
+        return string.Equals(id, "deepseek-v4.1-flash", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-v4.1-pro", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(id, "deepseek-v4-pro", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(id, "deepseek-chat", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(id, "deepseek-reasoner", StringComparison.OrdinalIgnoreCase);
@@ -635,12 +637,18 @@ public sealed class ConfigurationStore
 
     private static bool IsRoutinAiDeepSeekRouteId(string id)
     {
-        return string.Equals(id, "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase) ||
+        return string.Equals(id, "deepseek-v4.1-flash", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-v4.1-pro", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "deepseek-v4-flash", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(id, "deepseek-v4-pro", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetDeepSeekDisplayName(string id)
     {
+        if (string.Equals(id, "deepseek-v4.1-flash", StringComparison.OrdinalIgnoreCase))
+            return "DeepSeek V4.1 Flash";
+        if (string.Equals(id, "deepseek-v4.1-pro", StringComparison.OrdinalIgnoreCase))
+            return "DeepSeek V4.1 Pro";
         if (string.Equals(id, "deepseek-v4-pro", StringComparison.OrdinalIgnoreCase))
             return "DeepSeek V4 Pro";
         if (string.Equals(id, "deepseek-chat", StringComparison.OrdinalIgnoreCase))

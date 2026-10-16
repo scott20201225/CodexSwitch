@@ -9,6 +9,10 @@ public static class ProviderTemplateCatalog
     public const string AnthropicBuiltinId = "anthropic";
     public const string DeepSeekBuiltinId = "deepseek";
     public const string XiaomiBuiltinId = "xiaomi-mimo";
+    public const string QwenBuiltinId = "qwen";
+    public const string ZhipuBuiltinId = "zhipu";
+    public const string MoonshotBuiltinId = "moonshot";
+    public const string DoubaoBuiltinId = "doubao";
     public const string CodexOAuthBuiltinId = "codex-oauth";
     public const string OpenAiOfficialBaseUrl = "https://api.openai.com/v1";
     public const string XiaomiLegacyBaseUrl = "https://api.xiaomimimo.com/v1";
@@ -97,7 +101,7 @@ public static class ProviderTemplateCatalog
             Website = "https://platform.deepseek.com",
             BaseUrl = "https://api.deepseek.com/v1",
             Protocol = ProviderProtocol.OpenAiChat,
-            DefaultModel = "deepseek-v4-flash",
+            DefaultModel = "deepseek-v4.1-flash",
             IconSlug = "deepseek",
             SupportsCodex = true,
             SupportsClaudeCode = true,
@@ -116,6 +120,66 @@ public static class ProviderTemplateCatalog
             IconSlug = "xiaomi",
             SupportsCodex = true,
             Models = BuiltInModelCatalog.XiaomiModels
+        },
+        new()
+        {
+            Id = QwenBuiltinId,
+            BuiltinId = QwenBuiltinId,
+            DisplayName = "Alibaba Qwen",
+            Description = "Official Alibaba DashScope OpenAI-compatible API",
+            Website = "https://bailian.console.aliyun.com",
+            BaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            Protocol = ProviderProtocol.OpenAiChat,
+            DefaultModel = "qwen3-coder-plus",
+            IconSlug = "qwen",
+            SupportsCodex = true,
+            SupportsClaudeCode = true,
+            Models = BuiltInModelCatalog.QwenModels
+        },
+        new()
+        {
+            Id = ZhipuBuiltinId,
+            BuiltinId = ZhipuBuiltinId,
+            DisplayName = "Zhipu GLM",
+            Description = "Official Zhipu AI BigModel OpenAI-compatible API",
+            Website = "https://open.bigmodel.cn",
+            BaseUrl = "https://open.bigmodel.cn/api/paas/v4",
+            Protocol = ProviderProtocol.OpenAiChat,
+            DefaultModel = "glm-5-plus",
+            IconSlug = "zhipu",
+            SupportsCodex = true,
+            SupportsClaudeCode = true,
+            Models = BuiltInModelCatalog.ZhipuModels
+        },
+        new()
+        {
+            Id = MoonshotBuiltinId,
+            BuiltinId = MoonshotBuiltinId,
+            DisplayName = "Moonshot Kimi",
+            Description = "Official Moonshot AI Kimi OpenAI-compatible API",
+            Website = "https://platform.moonshot.cn",
+            BaseUrl = "https://api.moonshot.cn/v1",
+            Protocol = ProviderProtocol.OpenAiChat,
+            DefaultModel = "kimi-k2.5",
+            IconSlug = "moonshot",
+            SupportsCodex = true,
+            SupportsClaudeCode = true,
+            Models = BuiltInModelCatalog.MoonshotModels
+        },
+        new()
+        {
+            Id = DoubaoBuiltinId,
+            BuiltinId = DoubaoBuiltinId,
+            DisplayName = "ByteDance Doubao",
+            Description = "Official ByteDance Volcano Ark OpenAI-compatible API",
+            Website = "https://console.volcengine.com/ark",
+            BaseUrl = "https://ark.cn-beijing.volces.com/api/v3",
+            Protocol = ProviderProtocol.OpenAiChat,
+            DefaultModel = "doubao-1.5-pro",
+            IconSlug = "doubao",
+            SupportsCodex = true,
+            SupportsClaudeCode = true,
+            Models = BuiltInModelCatalog.DoubaoModels
         }
     ];
 
